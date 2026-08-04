@@ -130,6 +130,16 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 </div>
 
 <div class="card">
+<h2 style="margin-top:0">SIPP vs Workplace Pension Allocator</h2>
+<p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">Workplace pension and SIPP are both tax-relieved going in. But SIPP gives you more control and earlier access (57). Workplace pension is managed by your employer. This shows the trade-off of redirecting some contributions.</p>
+<div class="row">
+<div class="field"><label>Total monthly pension contribution (£)</label><input type="number" id="totalMonthly" value="2352" min="0" step="50" oninput="updateAllocator()"></div>
+<div class="field"><label>Redirect to SIPP (£/month)</label><input type="range" id="sippRedirect" min="0" max="2352" value="0" step="50" oninput="document.getElementById('redirectValue').textContent='£'+this.value+'/mo';updateAllocator()"><span class="value" id="redirectValue">£0/mo</span></div>
+</div>
+<div id="allocatorResult" class="card-inner"></div>
+</div>
+
+<div class="card">
 <h2 style="margin-top:0">What If: Contribution Changes</h2>
 <div class="row">
 <div class="field"><label>Add SIPP contribution (£/month)</label><input type="number" id="extraSipp" value="500" min="0" step="50" oninput="updateScenario()"></div>
@@ -330,6 +340,69 @@ function updateScenario() {
   `;
 }
 
+function updateAllocator() {
+  const inp = getInputs();
+  const total = +document.getElementById('totalMonthly').value || 0;
+  const redirect = +document.getElementById('sippRedirect').value || 0;
+  const toSipp = redirect;
+  const toWork = total - redirect;
+  
+  // Project with redirect
+  const annualSippContrib = toSipp * 12;
+  const annualWorkContrib = toWork * 12;
+  let sipp1 = inp.sipp, work1 = inp.work, isa1 = inp.isa;
+  let sipp0 = inp.sipp, work0 = inp.work, isa0 = inp.isa;
+  let fiWith = null, fiWithout = null;
+  const sippSwr = (p) => netDrawdown(p * inp.swr);
+  
+  for (let a = inp.age; a <= 75; a++) {
+    // With redirect
+    sipp1 = sipp1 * (1 + inp.rr) + annualSippContrib;
+    work1 = work1 * (1 + inp.rr) + annualWorkContrib;
+    isa1 = isa1 * (1 + inp.rr) + (inp.isaMonthly * 12);
+    const total1 = sipp1 + work1 + isa1;
+    const net1 = sippSwr(total1);
+    if (!fiWith && net1 >= inp.target) fiWith = a;
+    
+    // Without redirect (all to work)
+    sipp0 = sipp0 * (1 + inp.rr);
+    work0 = work0 * (1 + inp.rr) + (total * 12);
+    isa0 = isa0 * (1 + inp.rr) + (inp.isaMonthly * 12);
+    const total0 = sipp0 + work0 + isa0;
+    const net0 = sippSwr(total0);
+    if (!fiWithout && net0 >= inp.target) fiWithout = a;
+  }
+  
+  const at57With = sipp1 + work1; // simplified — just total at 57
+  const sippAt57With = sipp1;
+  const sippAt57Without = sipp0;
+  
+  document.getElementById('allocatorResult').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div>
+        <div class="summary-label">SIPP at 57 (redirect £${redirect}/mo)</div>
+        <div class="summary-value" style="color:var(--green)">${fmt(sippAt57With)}</div>
+      </div>
+      <div>
+        <div class="summary-label">SIPP at 57 (current: £0/mo)</div>
+        <div class="summary-value" style="color:var(--muted)">${fmt(sippAt57Without)}</div>
+      </div>
+      <div>
+        <div class="summary-label">FI age (with redirect)</div>
+        <div class="summary-value">${fiWith || '75+'}</div>
+      </div>
+      <div>
+        <div class="summary-label">SIPP difference at 57</div>
+        <div class="summary-value" style="color:var(--accent)">${fmt(sippAt57With - sippAt57Without)}</div>
+      </div>
+    </div>
+    <div style="color:var(--muted);margin-top:0.75rem;font-size:0.8rem">
+      Redirecting £${redirect}/mo to SIPP moves ${fmt(sippAt57With - sippAt57Without)} into your personal pension by age 57.
+      ${fiWith && fiWithout && fiWith !== fiWithout ? `FI age: ${fiWithout} → ${fiWith}.` : fiWith === fiWithout ? 'FI age unchanged — pot size at access differs.' : ''}
+    </div>
+  `;
+}
+
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -342,6 +415,7 @@ document.getElementById('returnRate').addEventListener('input', calc);
 document.getElementById('swr').addEventListener('input', calc);
 calc();
 updateScenario();
+updateAllocator();
 </script>
 </body>
 </html>
