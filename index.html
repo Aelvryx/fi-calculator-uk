@@ -71,18 +71,52 @@ th { color: var(--muted); font-size: 0.875rem; }
 <div class="card">
 <h2 style="margin-top:0">Projection</h2>
 <table>
-<thead><tr><th>Age</th><th>Total Pot</th><th>Annual Income (SWR)</th><th>+ State Pension</th><th>Status</th></tr></thead>
+<thead><tr><th>Age</th><th>Total Pot</th><th>Gross (SWR)</th><th>Net after tax</th><th>+ State Pension</th><th>Status</th></tr></thead>
 <tbody id="projection"></tbody>
 </table>
 </div>
 
-<p class="disclaimer">Educational tool only. Not financial advice. Assumptions: real returns above inflation, constant contributions in real terms, state pension age 68 (£11,502/yr current full rate), SIPP accessible from 57. Tax (income tax on pension drawdown, LTA abolished 2024) not fully modelled. Do your own research.</p>
+<p class="disclaimer">Educational tool only. Not financial advice. Assumptions: real returns above inflation, constant contributions in real terms, state pension age 68 (£11,502/yr current full rate), SIPP accessible from 57. Tax modelled: 25% tax-free lump sum (PCLS), balance taxed as income at 2026/27 bands (£12,570 personal allowance, 20%/40%/45%). ISA drawdown is tax-free and not modelled separately. LTA abolished April 2024. Do your own research.</p>
 </div>
 
 <script>
 const STATE_PENSION = 11502;
 const STATE_PENSION_AGE = 68;
 const SIPP_ACCESS_AGE = 57;
+
+// UK Pension Tax Bands 2026/27
+const TAX_PERSONAL_ALLOWANCE = 12570;
+const TAX_BASIC_RATE = 0.20; // 20% on £12,571-£50,270
+const TAX_HIGHER_RATE = 0.40; // 40% on £50,271-£125,140
+const TAX_ADDITIONAL_RATE = 0.45; // 45% on £125,141+
+const TAX_BASIC_THRESHOLD = 50270;
+const TAX_ADDITIONAL_THRESHOLD = 125140;
+const PCLS_RATE = 0.25; // 25% tax-free lump sum
+
+function calcIncomeTax(taxableIncome) {
+  if (taxableIncome <= TAX_PERSONAL_ALLOWANCE) return 0;
+  let tax = 0;
+  if (taxableIncome > TAX_ADDITIONAL_THRESHOLD) {
+    tax += (taxableIncome - TAX_ADDITIONAL_THRESHOLD) * TAX_ADDITIONAL_RATE;
+    tax += (TAX_ADDITIONAL_THRESHOLD - TAX_BASIC_THRESHOLD) * TAX_HIGHER_RATE;
+    tax += (TAX_BASIC_THRESHOLD - TAX_PERSONAL_ALLOWANCE) * TAX_BASIC_RATE;
+  } else if (taxableIncome > TAX_BASIC_THRESHOLD) {
+    tax += (taxableIncome - TAX_BASIC_THRESHOLD) * TAX_HIGHER_RATE;
+    tax += (TAX_BASIC_THRESHOLD - TAX_PERSONAL_ALLOWANCE) * TAX_BASIC_RATE;
+  } else {
+    tax += (taxableIncome - TAX_PERSONAL_ALLOWANCE) * TAX_BASIC_RATE;
+  }
+  return tax;
+}
+
+function calcPensionDrawdownNet(grossAnnual, potSize) {
+  // Assume: take 25% tax-free upfront (PCLS), draw rest as income
+  // Simplified: each year, portion of drawdown is tax-free (from PCLS pot), rest taxed
+  const pclsPortion = grossAnnual * PCLS_RATE;
+  const taxablePortion = grossAnnual * 0.75;
+  const tax = calcIncomeTax(taxablePortion);
+  return grossAnnual - tax;
+}
 
 function calc() {
   const age = +document.getElementById('age').value;
@@ -107,19 +141,21 @@ function calc() {
     isaPot = isaPot * (1 + realReturn) + annualIsa;
     const total = pensionPot + isaPot;
     const swrIncome = total * swr;
+    const netIncome = calcPensionDrawdownNet(swrIncome, total);
     const stateInc = a >= STATE_PENSION_AGE ? STATE_PENSION : 0;
-    const totalIncome = swrIncome + stateInc;
+    const totalIncome = netIncome + stateInc;
     
-    // Check milestones
-    if (!fiAge && swrIncome >= target) fiAge = a;
+    // Check milestones — use net income for FI comparison
+    if (!fiAge && netIncome >= target) fiAge = a;
     
     if ([40, 45, 50, 55, 57, 60, 65, 68].includes(a) || a === fiAge) {
-      const status = swrIncome >= target ? '✅ FI' : (totalIncome >= target ? '🟡 FI+state' : '');
+      const status = netIncome >= target ? '✅ FI' : (totalIncome >= target ? '🟡 FI+state' : '');
       rows += `<tr>
         <td><strong>${a}</strong></td>
         <td>£${Math.round(total).toLocaleString()}</td>
         <td>£${Math.round(swrIncome).toLocaleString()}</td>
-        <td>£${Math.round(swrIncome + stateInc).toLocaleString()}</td>
+        <td>£${Math.round(netIncome).toLocaleString()}</td>
+        <td>£${Math.round(netIncome + stateInc).toLocaleString()}</td>
         <td class="${status ? 'milestone' : ''}">${status || '—'}</td>
       </tr>`;
     }
@@ -130,10 +166,10 @@ function calc() {
   if (fiAge) {
     const years = fiAge - age;
     document.getElementById('fiAge').textContent = fiAge;
-    document.getElementById('fiLabel').textContent = `Financial independence in ${years} year${years !== 1 ? 's' : ''}. Pot generates £${Math.round(target).toLocaleString()}/yr without touching the capital.`;
+    document.getElementById('fiLabel').textContent = `Financial independence in ${years} year${years !== 1 ? 's' : ''}. Net income after UK tax: £${Math.round(target).toLocaleString()}/yr.`;
   } else {
     document.getElementById('fiAge').textContent = '70+';
-    document.getElementById('fiLabel').textContent = `At this contribution rate, FI target of £${target.toLocaleString()}/yr not reached by 70. Increase contributions or adjust target.`;
+    document.getElementById('fiLabel').textContent = `At this contribution rate, FI target of £${target.toLocaleString()}/yr net not reached by 70. Increase contributions or adjust target.`;
   }
 }
 
