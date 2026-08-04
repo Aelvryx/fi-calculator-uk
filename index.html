@@ -205,8 +205,8 @@ function project(inp, extraSippMonthly = 0, extraIsaMonthly = 0) {
   let fiAge = null;
   
   for (let a = inp.age; a <= 75; a++) {
-    sipp = sipp * (1 + inp.rr) + (annualPension * 0.3); // ~30% to SIPP
-    work = work * (1 + inp.rr) + (annualPension * 0.7); // ~70% to work pension
+    sipp = sipp * (1 + inp.rr); // SIPP: no contributions (Anthony's current state)
+    work = work * (1 + inp.rr) + annualPension; // All contributions to work pension
     isa = isa * (1 + inp.rr) + annualIsa;
     
     const total = sipp + work + isa;
