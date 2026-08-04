@@ -3,179 +3,345 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FI Calculator UK — When can you retire?</title>
+<title>FI Tracker UK — Pension Forecast & Financial Independence</title>
 <style>
 :root {
   --bg: #0b1217;
   --surface: #141d24;
+  --surface2: #1a252e;
   --border: #243340;
   --text: #e8edf2;
   --muted: #8a9ba8;
   --accent: #e8a838;
   --green: #4ade80;
   --red: #f87171;
+  --blue: #60a5fa;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: 'DM Sans', -apple-system, system-ui, sans-serif; line-height: 1.6; }
-.container { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+.container { max-width: 1000px; margin: 0 auto; padding: 2rem 1rem; }
 h1 { font-size: 2rem; margin-bottom: 0.25rem; }
-h2 { font-size: 1.25rem; margin: 2rem 0 1rem; color: var(--muted); }
+h2 { font-size: 1.25rem; margin: 2rem 0 1rem; color: var(--muted); font-weight: 500; }
 .subtitle { color: var(--muted); margin-bottom: 2rem; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+.card-inner { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; }
 label { display: block; margin-bottom: 0.25rem; color: var(--muted); font-size: 0.875rem; }
 input[type="number"] { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; color: var(--text); font-size: 1rem; width: 100%; max-width: 200px; }
 input[type="range"] { width: 100%; max-width: 200px; accent-color: var(--accent); }
 .row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-.field { flex: 1; min-width: 150px; }
+.field { flex: 1; min-width: 140px; }
 .value { font-size: 1.1rem; font-weight: 600; color: var(--accent); }
 .result { text-align: center; padding: 2rem; }
-.result-number { font-size: 3rem; font-weight: 700; color: var(--green); }
+.result-number { font-size: 3rem; font-weight: 700; }
 .result-label { color: var(--muted); font-size: 1.1rem; margin-top: 0.5rem; }
+.result-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border); }
-th { color: var(--muted); font-size: 0.875rem; }
+th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .milestone { color: var(--green); font-weight: 600; }
+.bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 200px; margin-top: 1rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.bar { flex: 1; min-width: 20px; background: var(--accent); border-radius: 3px 3px 0 0; position: relative; opacity: 0.3; transition: opacity 0.2s; }
+.bar.fi { background: var(--green); opacity: 0.8; }
+.bar:hover { opacity: 1; }
+.bar-label { position: absolute; bottom: -1.5rem; left: 50%; transform: translateX(-50%); font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
+.bar-value { position: absolute; top: -1.2rem; left: 50%; transform: translateX(-50%); font-size: 0.7rem; color: var(--text); white-space: nowrap; opacity: 0; transition: opacity 0.2s; }
+.bar:hover .bar-value { opacity: 1; }
+.tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.tab { padding: 0.75rem 1.5rem; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; font-weight: 500; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.scenario { display: flex; gap: 1rem; align-items: center; padding: 0.75rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.5rem; }
+.scenario-label { font-weight: 600; min-width: 150px; }
+.scenario-detail { color: var(--muted); font-size: 0.875rem; flex: 1; }
+.scenario-age { font-size: 1.25rem; font-weight: 700; min-width: 60px; text-align: right; }
 .disclaimer { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
-@media (max-width: 600px) { .row { flex-direction: column; } }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.summary-item { text-align: center; padding: 1rem; background: var(--surface2); border-radius: 6px; }
+.summary-value { font-size: 1.75rem; font-weight: 700; }
+.summary-label { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+@media (max-width: 600px) { .row { flex-direction: column; } .bar-chart { height: 150px; } }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>FI Calculator <span style="color:var(--accent)">UK</span></h1>
-<p class="subtitle">When can you stop selling your labour? Built for UK pensions, ISAs, and tax.</p>
+<h1>FI Tracker <span style="color:var(--accent)">UK</span></h1>
+<p class="subtitle">Pension forecast, scenario modelling, and financial independence tracking.</p>
+
+<div class="tabs">
+<div class="tab active" onclick="showTab('forecast')">Forecast</div>
+<div class="tab" onclick="showTab('scenarios')">Scenarios</div>
+<div class="tab" onclick="showTab('breakdown')">Pot Breakdown</div>
+</div>
+
+<!-- FORECAST TAB -->
+<div id="forecast" class="tab-content active">
 
 <div class="card">
 <h2 style="margin-top:0">Your Numbers</h2>
 <div class="row">
 <div class="field"><label>Current age</label><input type="number" id="age" value="38" min="18" max="80"></div>
-<div class="field"><label>SIPP / personal pension (£)</label><input type="number" id="sipp" value="90000" min="0" step="1000"></div>
+<div class="field"><label>SIPP (£)</label><input type="number" id="sipp" value="90000" min="0" step="1000"></div>
 <div class="field"><label>Workplace pension (£)</label><input type="number" id="work" value="60000" min="0" step="1000"></div>
-</div>
-<div class="row">
 <div class="field"><label>ISA / savings (£)</label><input type="number" id="isa" value="0" min="0" step="1000"></div>
-<div class="field"><label>Monthly pension contributions (£)</label><input type="number" id="monthly" value="2352" min="0" step="50"></div>
-<div class="field"><label>Monthly ISA contributions (£)</label><input type="number" id="isaMonthly" value="0" min="0" step="50"></div>
 </div>
 <div class="row">
-<div class="field"><label>Target annual income (£)</label><input type="number" id="target" value="40000" min="10000" step="1000"></div>
-<div class="field"><label>Real return (%)</label><input type="range" id="return" min="2" max="8" value="4" step="0.5" oninput="document.getElementById('returnValue').textContent=this.value+'%'"><span class="value" id="returnValue">4%</span></div>
+<div class="field"><label>Monthly pension contributions (£)</label><input type="number" id="monthly" value="2352" min="0" step="50"></div>
+<div class="field"><label>Monthly ISA (£)</label><input type="number" id="isaMonthly" value="0" min="0" step="50"></div>
+<div class="field"><label>Target net income (£/yr)</label><input type="number" id="target" value="40000" min="10000" step="1000"></div>
+</div>
+<div class="row">
+<div class="field"><label>Real return (%)</label><input type="range" id="returnRate" min="2" max="8" value="4" step="0.5" oninput="document.getElementById('returnValue').textContent=this.value+'%'"><span class="value" id="returnValue">4%</span></div>
 <div class="field"><label>Safe withdrawal (%)</label><input type="range" id="swr" min="3" max="5" value="4" step="0.25" oninput="document.getElementById('swrValue').textContent=this.value+'%'"><span class="value" id="swrValue">4%</span></div>
 </div>
 </div>
 
 <div class="card result">
-<div class="result-number" id="fiAge">—</div>
-<div class="result-label" id="fiLabel">Enter your numbers above</div>
+<div class="result-number" id="fiAge" style="color: var(--green)">—</div>
+<div class="result-label" id="fiLabel">Enter your numbers</div>
+<div class="result-sub" id="fiSub"></div>
 </div>
 
 <div class="card">
-<h2 style="margin-top:0">Projection</h2>
+<h2 style="margin-top:0">Summary</h2>
+<div class="summary-grid" id="summary"></div>
+</div>
+
+<div class="card">
+<h2 style="margin-top:0">Growth Chart</h2>
+<div class="bar-chart" id="chart"></div>
+</div>
+
+<div class="card">
+<h2 style="margin-top:0">Year-by-Year Projection</h2>
 <table>
-<thead><tr><th>Age</th><th>Total Pot</th><th>Gross (SWR)</th><th>Net after tax</th><th>+ State Pension</th><th>Status</th></tr></thead>
+<thead><tr><th>Age</th><th>Year</th><th>SIPP</th><th>Work Pension</th><th>ISA</th><th>Total</th><th>Gross SWR</th><th>Net Income</th><th>+ State</th><th>Status</th></tr></thead>
 <tbody id="projection"></tbody>
 </table>
 </div>
+</div>
 
-<p class="disclaimer">Educational tool only. Not financial advice. Assumptions: real returns above inflation, constant contributions in real terms, state pension age 68 (£11,502/yr current full rate), SIPP accessible from 57. Tax modelled: 25% tax-free lump sum (PCLS), balance taxed as income at 2026/27 bands (£12,570 personal allowance, 20%/40%/45%). ISA drawdown is tax-free and not modelled separately. LTA abolished April 2024. Do your own research.</p>
+<!-- SCENARIOS TAB -->
+<div id="scenarios" class="tab-content">
+<div class="card">
+<h2 style="margin-top:0">Scenario Comparison</h2>
+<p style="color:var(--muted);margin-bottom:1rem">How changes to your plan affect financial independence age. Baseline uses your current numbers.</p>
+<div id="scenarioList"></div>
+</div>
+
+<div class="card">
+<h2 style="margin-top:0">What If: Contribution Changes</h2>
+<div class="row">
+<div class="field"><label>Add SIPP contribution (£/month)</label><input type="number" id="extraSipp" value="500" min="0" step="50" oninput="updateScenario()"></div>
+<div class="field"><label>Add ISA contribution (£/month)</label><input type="number" id="extraIsa" value="200" min="0" step="50" oninput="updateScenario()"></div>
+<div class="field"><label>Salary increase to pension (%)</label><input type="number" id="salaryIncrease" value="0" min="0" max="20" step="1" oninput="updateScenario()"></div>
+</div>
+<div class="card-inner" id="customScenario"></div>
+</div>
+</div>
+
+<!-- BREAKDOWN TAB -->
+<div id="breakdown" class="tab-content">
+<div class="card">
+<h2 style="margin-top:0">Potion Breakdown Over Time</h2>
+<p style="color:var(--muted);margin-bottom:1rem">Where your wealth is held at each age. Diversification matters — SIPP and ISA have different access ages and tax treatment.</p>
+<div id="breakdownChart"></div>
+</div>
+<div class="card">
+<h2 style="margin-top:0">Access Windows</h2>
+<div class="card-inner">
+<strong style="color:var(--blue)">Age 57+</strong> — SIPP and workplace pension accessible (25% tax-free, rest as income)
+</div>
+<div class="card-inner">
+<strong style="color:var(--green)">Any age</strong> — ISA accessible tax-free (capital gains shielded)
+</div>
+<div class="card-inner">
+<strong style="color:var(--accent)">Age 68</strong> — State pension begins (£11,502/yr current full rate)
+</div>
+</div>
+</div>
+
+<p class="disclaimer">Educational tool only. Not financial advice. Assumptions: real returns above inflation, constant contributions in real terms, state pension age 68 (£11,502/yr), SIPP/workplace pension accessible from 57 (current rules, may change). Tax: 25% PCLS tax-free, balance at 2026/27 income tax bands (£12,570 allowance, 20%/40%/45%). ISA growth and drawdown tax-free. LTA abolished April 2024. Figures are real (inflation-adjusted) unless stated. Do your own research.</p>
 </div>
 
 <script>
 const STATE_PENSION = 11502;
 const STATE_PENSION_AGE = 68;
 const SIPP_ACCESS_AGE = 57;
+const PA = 12570, BR = 0.20, HR = 0.40, AR = 0.45, BT = 50270, AT = 125140, PCLS = 0.25;
 
-// UK Pension Tax Bands 2026/27
-const TAX_PERSONAL_ALLOWANCE = 12570;
-const TAX_BASIC_RATE = 0.20; // 20% on £12,571-£50,270
-const TAX_HIGHER_RATE = 0.40; // 40% on £50,271-£125,140
-const TAX_ADDITIONAL_RATE = 0.45; // 45% on £125,141+
-const TAX_BASIC_THRESHOLD = 50270;
-const TAX_ADDITIONAL_THRESHOLD = 125140;
-const PCLS_RATE = 0.25; // 25% tax-free lump sum
-
-function calcIncomeTax(taxableIncome) {
-  if (taxableIncome <= TAX_PERSONAL_ALLOWANCE) return 0;
-  let tax = 0;
-  if (taxableIncome > TAX_ADDITIONAL_THRESHOLD) {
-    tax += (taxableIncome - TAX_ADDITIONAL_THRESHOLD) * TAX_ADDITIONAL_RATE;
-    tax += (TAX_ADDITIONAL_THRESHOLD - TAX_BASIC_THRESHOLD) * TAX_HIGHER_RATE;
-    tax += (TAX_BASIC_THRESHOLD - TAX_PERSONAL_ALLOWANCE) * TAX_BASIC_RATE;
-  } else if (taxableIncome > TAX_BASIC_THRESHOLD) {
-    tax += (taxableIncome - TAX_BASIC_THRESHOLD) * TAX_HIGHER_RATE;
-    tax += (TAX_BASIC_THRESHOLD - TAX_PERSONAL_ALLOWANCE) * TAX_BASIC_RATE;
-  } else {
-    tax += (taxableIncome - TAX_PERSONAL_ALLOWANCE) * TAX_BASIC_RATE;
-  }
-  return tax;
+function incomeTax(taxable) {
+  if (taxable <= PA) return 0;
+  let t = 0;
+  if (taxable > AT) { t += (taxable - AT) * AR; t += (AT - BT) * HR; t += (BT - PA) * BR; }
+  else if (taxable > BT) { t += (taxable - BT) * HR; t += (BT - PA) * BR; }
+  else { t += (taxable - PA) * BR; }
+  return t;
 }
 
-function calcPensionDrawdownNet(grossAnnual, potSize) {
-  // Assume: take 25% tax-free upfront (PCLS), draw rest as income
-  // Simplified: each year, portion of drawdown is tax-free (from PCLS pot), rest taxed
-  const pclsPortion = grossAnnual * PCLS_RATE;
-  const taxablePortion = grossAnnual * 0.75;
-  const tax = calcIncomeTax(taxablePortion);
-  return grossAnnual - tax;
+function netDrawdown(gross) {
+  return gross - incomeTax(gross * (1 - PCLS));
 }
 
-function calc() {
-  const age = +document.getElementById('age').value;
-  const sipp = +document.getElementById('sipp').value;
-  const work = +document.getElementById('work').value;
-  const isa = +document.getElementById('isa').value;
-  const monthly = +document.getElementById('monthly').value;
-  const isaMonthly = +document.getElementById('isaMonthly').value;
-  const target = +document.getElementById('target').value;
-  const realReturn = +document.getElementById('return').value / 100;
-  const swr = +document.getElementById('swr').value / 100;
-  
-  const annualPension = monthly * 12;
-  const annualIsa = isaMonthly * 12;
-  let pensionPot = sipp + work;
-  let isaPot = isa;
+function getInputs() {
+  return {
+    age: +document.getElementById('age').value,
+    sipp: +document.getElementById('sipp').value,
+    work: +document.getElementById('work').value,
+    isa: +document.getElementById('isa').value,
+    monthly: +document.getElementById('monthly').value,
+    isaMonthly: +document.getElementById('isaMonthly').value,
+    target: +document.getElementById('target').value,
+    rr: +document.getElementById('returnRate').value / 100,
+    swr: +document.getElementById('swr').value / 100,
+  };
+}
+
+function project(inp, extraSippMonthly = 0, extraIsaMonthly = 0) {
+  const annualPension = (inp.monthly + extraSippMonthly) * 12;
+  const annualIsa = (inp.isaMonthly + extraIsaMonthly) * 12;
+  let sipp = inp.sipp, work = inp.work, isa = inp.isa;
+  const years = [];
   let fiAge = null;
   
-  let rows = '';
-  for (let a = age; a <= 70; a++) {
-    pensionPot = pensionPot * (1 + realReturn) + annualPension;
-    isaPot = isaPot * (1 + realReturn) + annualIsa;
-    const total = pensionPot + isaPot;
-    const swrIncome = total * swr;
-    const netIncome = calcPensionDrawdownNet(swrIncome, total);
-    const stateInc = a >= STATE_PENSION_AGE ? STATE_PENSION : 0;
-    const totalIncome = netIncome + stateInc;
+  for (let a = inp.age; a <= 75; a++) {
+    sipp = sipp * (1 + inp.rr) + (annualPension * 0.3); // ~30% to SIPP
+    work = work * (1 + inp.rr) + (annualPension * 0.7); // ~70% to work pension
+    isa = isa * (1 + inp.rr) + annualIsa;
     
-    // Check milestones — use net income for FI comparison
-    if (!fiAge && netIncome >= target) fiAge = a;
+    const total = sipp + work + isa;
+    const grossSWR = total * inp.swr;
+    const net = netDrawdown(grossSWR);
+    const state = a >= STATE_PENSION_AGE ? STATE_PENSION : 0;
+    const totalNet = net + state;
     
-    if ([40, 45, 50, 55, 57, 60, 65, 68].includes(a) || a === fiAge) {
-      const status = netIncome >= target ? '✅ FI' : (totalIncome >= target ? '🟡 FI+state' : '');
-      rows += `<tr>
-        <td><strong>${a}</strong></td>
-        <td>£${Math.round(total).toLocaleString()}</td>
-        <td>£${Math.round(swrIncome).toLocaleString()}</td>
-        <td>£${Math.round(netIncome).toLocaleString()}</td>
-        <td>£${Math.round(netIncome + stateInc).toLocaleString()}</td>
-        <td class="${status ? 'milestone' : ''}">${status || '—'}</td>
-      </tr>`;
-    }
+    if (!fiAge && net >= inp.target) fiAge = a;
+    
+    years.push({ age: a, sipp, work, isa, total, grossSWR, net, state, totalNet, fi: net >= inp.target });
   }
-  
-  document.getElementById('projection').innerHTML = rows;
-  
-  if (fiAge) {
-    const years = fiAge - age;
-    document.getElementById('fiAge').textContent = fiAge;
-    document.getElementById('fiLabel').textContent = `Financial independence in ${years} year${years !== 1 ? 's' : ''}. Net income after UK tax: £${Math.round(target).toLocaleString()}/yr.`;
-  } else {
-    document.getElementById('fiAge').textContent = '70+';
-    document.getElementById('fiLabel').textContent = `At this contribution rate, FI target of £${target.toLocaleString()}/yr net not reached by 70. Increase contributions or adjust target.`;
-  }
+  return { years, fiAge };
 }
 
-// Calculate on load and on input change
-document.querySelectorAll('input').forEach(el => el.addEventListener('input', calc));
+function fmt(n) { return '£' + Math.round(n).toLocaleString(); }
+function yr(age) { return 2026 + (age - 38); }
+
+function calc() {
+  const inp = getInputs();
+  const { years, fiAge } = project(inp);
+  
+  // Result
+  if (fiAge) {
+    const yrs = fiAge - inp.age;
+    document.getElementById('fiAge').textContent = fiAge;
+    document.getElementById('fiAge').style.color = 'var(--green)';
+    document.getElementById('fiLabel').textContent = `Financial independence in ${yrs} year${yrs!==1?'s':''}`;
+    const atFi = years.find(y => y.age === fiAge);
+    document.getElementById('fiSub').textContent = `Pot: ${fmt(atFi.total)} → ${fmt(atFi.net)}/yr net after tax`;
+  } else {
+    document.getElementById('fiAge').textContent = '75+';
+    document.getElementById('fiAge').style.color = 'var(--red)';
+    document.getElementById('fiLabel').textContent = `Target of ${fmt(inp.target)}/yr net not reached by 75`;
+    document.getElementById('fiSub').textContent = 'Increase contributions, returns, or time horizon';
+  }
+  
+  // Summary
+  const current = years[0];
+  const at50 = years.find(y => y.age === 50) || years[years.length-1];
+  const at55 = years.find(y => y.age === 55) || years[years.length-1];
+  const at60 = years.find(y => y.age === 60) || years[years.length-1];
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-item"><div class="summary-value" style="color:var(--accent)">${fmt(current.total)}</div><div class="summary-label">Current total pot</div></div>
+    <div class="summary-item"><div class="summary-value" style="color:var(--blue)">${fmt(inp.monthly*12)}</div><div class="summary-label">Annual contributions</div></div>
+    <div class="summary-item"><div class="summary-value" style="color:var(--green)">${fiAge || '75+'}</div><div class="summary-label">FI age (net target)</div></div>
+    <div class="summary-item"><div class="summary-value">${fmt(at55.total)}</div><div class="summary-label">Pot at 55</div></div>
+    <div class="summary-item"><div class="summary-value">${fmt(at60.net)}/yr</div><div class="summary-label">Net income at 60</div></div>
+  `;
+  
+  // Chart
+  const chartEl = document.getElementById('chart');
+  const keyAges = years.filter(y => [38,40,42,45,47,50,52,55,57,60,62,65,68,70].includes(y.age));
+  const maxVal = Math.max(...keyAges.map(y => y.total));
+  chartEl.innerHTML = keyAges.map(y => {
+    const h = (y.total / maxVal) * 100;
+    const isFi = y.fi;
+    return `<div class="bar ${isFi?'fi':''}" style="height:${h}%">
+      <span class="bar-value">${Math.round(y.total/1000)}k</span>
+      <span class="bar-label">${y.age}</span>
+    </div>`;
+  }).join('');
+  
+  // Projection table
+  const showAges = years.filter(y => [38,40,42,45,47,50,52,55,57,60,62,65,68,70,72,75].includes(y.age) || y.age === fiAge);
+  document.getElementById('projection').innerHTML = showAges.map(y => {
+    const status = y.fi ? '✅ FI' : (y.totalNet >= inp.target ? '🟡 +state' : '—');
+    const cls = y.fi ? 'milestone' : '';
+    return `<tr class="${cls}">
+      <td><strong>${y.age}</strong></td><td>${yr(y.age)}</td>
+      <td>${fmt(y.sipp)}</td><td>${fmt(y.work)}</td><td>${fmt(y.isa)}</td>
+      <td><strong>${fmt(y.total)}</strong></td>
+      <td>${fmt(y.grossSWR)}</td><td>${fmt(y.net)}</td>
+      <td>${fmt(y.totalNet)}</td><td class="${cls}">${status}</td>
+    </tr>`;
+  }).join('');
+  
+  updateScenarios(inp);
+}
+
+function updateScenarios(inp) {
+  const baseline = project(inp).fiAge;
+  const scenarios = [
+    { label: 'Baseline', detail: 'Current plan, no changes', extra: 0, isaExtra: 0 },
+    { label: '+£250/mo SIPP', detail: '£3k/year extra into SIPP', extra: 250, isaExtra: 0 },
+    { label: '+£500/mo SIPP', detail: '£6k/year extra into SIPP', extra: 500, isaExtra: 0 },
+    { label: '+£200/mo ISA', detail: 'Tax-free bridge to age 57', extra: 0, isaExtra: 200 },
+    { label: 'Max both', detail: '+£500 SIPP + £200 ISA', extra: 500, isaExtra: 200 },
+  ];
+  
+  document.getElementById('scenarioList').innerHTML = scenarios.map(s => {
+    const r = project(inp, s.extra, s.isaExtra);
+    const age = r.fiAge || 75;
+    const diff = baseline ? age - baseline : 0;
+    const color = diff < 0 ? 'var(--green)' : diff > 0 ? 'var(--muted)' : 'var(--accent)';
+    return `<div class="scenario">
+      <div class="scenario-label">${s.label}</div>
+      <div class="scenario-detail">${s.detail}</div>
+      <div class="scenario-age" style="color:${color}">${age}${diff ? ` (${diff>0?'+':''}${diff})` : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateScenario() {
+  const inp = getInputs();
+  const extraSipp = +document.getElementById('extraSipp').value || 0;
+  const extraIsa = +document.getElementById('extraIsa').value || 0;
+  const baseline = project(inp);
+  const custom = project(inp, extraSipp, extraIsa);
+  const diff = (baseline.fiAge && custom.fiAge) ? custom.fiAge - baseline.fiAge : null;
+  
+  document.getElementById('customScenario').innerHTML = `
+    <div style="display:flex;gap:2rem;flex-wrap:wrap">
+      <div><div class="summary-label">Baseline FI age</div><div class="summary-value">${baseline.fiAge || '75+'}</div></div>
+      <div><div class="summary-label">With changes</div><div class="summary-value" style="color:var(--green)">${custom.fiAge || '75+'}</div></div>
+      ${diff !== null ? `<div><div class="summary-label">Difference</div><div class="summary-value" style="color:${diff<0?'var(--green)':'var(--red)'}">${diff>0?'+':''}${diff} years</div></div>` : ''}
+    </div>
+    <div style="color:var(--muted);margin-top:0.5rem;font-size:0.875rem">
+      Extra: £${extraSipp}/mo SIPP + £${extraIsa}/mo ISA = £${(extraSipp+extraIsa)*12}/yr additional contributions
+    </div>
+  `;
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(name).classList.add('active');
+}
+
+document.querySelectorAll('input:not([oninput])').forEach(el => el.addEventListener('input', calc));
+document.getElementById('returnRate').addEventListener('input', calc);
+document.getElementById('swr').addEventListener('input', calc);
 calc();
+updateScenario();
 </script>
 </body>
 </html>
