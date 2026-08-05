@@ -14,7 +14,7 @@ Checked against official UK sources on 5 August 2026.
 - The first row is the entered balance today. Growth and contributions are applied once before the following year's row.
 - Returns, contributions and spending are expressed in today's money. Contributions are treated as end-of-year cash flow.
 - Base monthly pension contributions go to workplace pension; explicit extra SIPP contributions go to SIPP.
-- The safe-withdrawal rate is an illustration, not a guarantee. ISA drawdown is tax-free. Private-pension income models 25% of each withdrawal as tax-free while allowance remains; prior crystallisations are not tracked.
+- The safe-withdrawal rate is an illustration, not a guarantee. ISA drawdown is tax-free. The FI gate uses conservative steady-state pension income after the lump-sum allowance is exhausted, so it does not treat 25% of every withdrawal as tax-free forever. A near-term calculation can apply 25% tax-free cash only up to the explicitly supplied remaining allowance; prior crystallisations are not inferred.
 - State Pension is taxable and is combined with taxable pension drawdown before Income Tax is calculated.
 - Before age 57, “accessible FI” requires an ISA bridge for every year to 57. Contributions stop at the candidate retirement age, the target is withdrawn at the beginning of each bridge year, remaining assets receive the selected real return, and sustainable net income is checked again at 57.
 - Scottish Income Tax, fees, market volatility, sequencing risk, protected pension ages and detailed decumulation strategies are outside this deterministic model.

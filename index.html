@@ -135,7 +135,7 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 <div class="card">
 <h2 style="margin-top:0">Year-by-Year Projection</h2>
 <table>
-<thead><tr><th>Age</th><th>Year</th><th>SIPP</th><th>Work Pension</th><th>ISA</th><th>Total</th><th>Gross SWR</th><th>Net Income</th><th>+ State</th><th>Status</th></tr></thead>
+<thead><tr><th>Age</th><th>Year</th><th>SIPP</th><th>Work Pension</th><th>ISA</th><th>Total</th><th>Accessible SWR</th><th>Sustainable net</th><th>+ State</th><th>Status</th></tr></thead>
 <tbody id="projection"></tbody>
 </table>
 </div>
@@ -222,7 +222,7 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 </div>
 </div>
 
-<p class="disclaimer">Educational tool only. Not financial advice. Assumptions: real returns above inflation; contributions stay constant in real terms until the tested retirement age; full new State Pension £241.30/week (£12,547.60/year) from age 68; SIPP/workplace pension accessible from 57. Tax uses 2026/27 England, Wales and Northern Ireland bands, includes the Personal Allowance taper, treats State Pension as taxable, and models 25% of pension drawdown as tax-free while lump-sum allowance remains. Scottish rates, scheme-specific protected pension ages, fees and prior crystallisations are not modelled. Figures are real unless stated. Check your own State Pension forecast and scheme rules.</p>
+<p class="disclaimer">Educational tool only. Not financial advice. Assumptions: real returns above inflation; contributions stay constant in real terms until the tested retirement age; full new State Pension £241.30/week (£12,547.60/year) from age 68; SIPP/workplace pension accessible from 57. Tax uses 2026/27 England, Wales and Northern Ireland bands, includes the Personal Allowance taper and treats State Pension as taxable. The FI gate uses sustainable pension income after tax-free cash is exhausted; it does not repeat 25% tax-free withdrawals forever. Scottish rates, scheme-specific protected pension ages, fees and prior crystallisations are not modelled. Figures are real unless stated. Check your own State Pension forecast and scheme rules.</p>
 </div>
 
 <script type="module">
@@ -251,17 +251,19 @@ function fmt(n) { return '£' + Math.round(n).toLocaleString(); }
 function calc() {
   const inp = getInputs();
   const { years, fiAge } = project(inp);
+  const current = years[0];
+  const normalizedAge = current.age;
   
   // Result
   if (fiAge !== null) {
-    const yrs = fiAge - inp.age;
+    const yrs = fiAge - normalizedAge;
     document.getElementById('fiAge').textContent = fiAge;
     document.getElementById('fiAge').style.color = 'var(--green)';
     document.getElementById('fiLabel').textContent = `Accessible financial independence in ${yrs} year${yrs!==1?'s':''}`;
     const atFi = years.find(y => y.age === fiAge);
     document.getElementById('fiSub').textContent = fiAge < UK_ASSUMPTIONS.pensionAccessAge
       ? `ISA bridge funded; projected net at 57: ${fmt(atFi.retirement.accessIncome)}/yr`
-      : `Pot: ${fmt(atFi.total)} → ${fmt(atFi.totalNet)}/yr accessible net after tax`;
+      : `Pot: ${fmt(atFi.total)} → ${fmt(atFi.totalNet)}/yr sustainable net after tax`;
   } else {
     document.getElementById('fiAge').textContent = '75+';
     document.getElementById('fiAge').style.color = 'var(--red)';
@@ -270,15 +272,16 @@ function calc() {
   }
   
   // Summary
-  const current = years[0];
-  const at55 = years.find(y => y.age === 55) || years[years.length-1];
-  const at60 = years.find(y => y.age === 60) || years[years.length-1];
+  const potMilestoneAge = Math.max(55, normalizedAge);
+  const incomeMilestoneAge = Math.max(60, normalizedAge);
+  const atPotMilestone = years.find(y => y.age === potMilestoneAge) || current;
+  const atIncomeMilestone = years.find(y => y.age === incomeMilestoneAge) || current;
   document.getElementById('summary').innerHTML = `
     <div class="summary-item"><div class="summary-value" style="color:var(--accent)">${fmt(current.total)}</div><div class="summary-label">Current total pot</div></div>
     <div class="summary-item"><div class="summary-value" style="color:var(--blue)">${fmt(inp.monthly*12)}</div><div class="summary-label">Annual contributions</div></div>
     <div class="summary-item"><div class="summary-value" style="color:var(--green)">${fiAge ?? '75+'}</div><div class="summary-label">Accessible FI age</div></div>
-    <div class="summary-item"><div class="summary-value">${fmt(at55.total)}</div><div class="summary-label">Pot at 55</div></div>
-    <div class="summary-item"><div class="summary-value">${fmt(at60.privateNet)}/yr</div><div class="summary-label">Accessible net at 60</div></div>
+    <div class="summary-item"><div class="summary-value">${fmt(atPotMilestone.total)}</div><div class="summary-label">Pot at ${potMilestoneAge}</div></div>
+    <div class="summary-item"><div class="summary-value">${fmt(atIncomeMilestone.privateNet)}/yr</div><div class="summary-label">Sustainable net at ${incomeMilestoneAge}</div></div>
   `;
 
   const bridge = current.retirement;
@@ -295,7 +298,7 @@ function calc() {
   
   // Chart
   const chartEl = document.getElementById('chart');
-  const keyAgeSet = new Set([inp.age,40,42,45,47,50,52,55,57,60,62,65,68,70]);
+  const keyAgeSet = new Set([normalizedAge,40,42,45,47,50,52,55,57,60,62,65,68,70]);
   const keyAges = years.filter(y => keyAgeSet.has(y.age));
   const maxVal = Math.max(...keyAges.map(y => y.total), 1);
   chartEl.innerHTML = keyAges.map(y => {
@@ -307,8 +310,8 @@ function calc() {
     </div>`;
   }).join('');
 
-  const breakdownAges = [...new Set([inp.age, 50, 57, fiAge, 68])]
-    .filter(age => age !== null && age >= inp.age && age <= 75)
+  const breakdownAges = [...new Set([normalizedAge, 50, 57, fiAge, 68])]
+    .filter(age => age !== null && age >= normalizedAge && age <= 75)
     .sort((a, b) => a - b);
   document.getElementById('breakdownChart').innerHTML = breakdownAges.map(age => {
     const y = years.find(entry => entry.age === age);
@@ -325,7 +328,7 @@ function calc() {
   }).join('');
   
   // Projection table
-  const tableAgeSet = new Set([inp.age,40,42,45,47,50,52,55,57,60,62,65,68,70,72,75]);
+  const tableAgeSet = new Set([normalizedAge,40,42,45,47,50,52,55,57,60,62,65,68,70,72,75]);
   const showAges = years.filter(y => tableAgeSet.has(y.age) || y.age === fiAge);
   document.getElementById('projection').innerHTML = showAges.map(y => {
     let status = '—';

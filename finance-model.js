@@ -47,13 +47,25 @@ export function incomeTax(grossTaxableIncome) {
   );
 }
 
-export function retirementIncome({ age, sipp, work, isa, swr }) {
+export function retirementIncome({
+  age,
+  sipp,
+  work,
+  isa,
+  swr,
+  taxFreeCashRemaining = 0,
+}) {
   const pensionAccessible = age >= UK_ASSUMPTIONS.pensionAccessAge;
   const pensionGross = pensionAccessible
     ? (nonNegative(sipp) + nonNegative(work)) * nonNegative(swr)
     : 0;
   const isaGross = nonNegative(isa) * nonNegative(swr);
-  const pensionTaxable = pensionGross * (1 - UK_ASSUMPTIONS.pensionTaxFreeFraction);
+  const taxFreeCashUsed = Math.min(
+    pensionGross * UK_ASSUMPTIONS.pensionTaxFreeFraction,
+    nonNegative(taxFreeCashRemaining),
+    UK_ASSUMPTIONS.lumpSumAllowance,
+  );
+  const pensionTaxable = pensionGross - taxFreeCashUsed;
   const privateNet = pensionGross + isaGross - incomeTax(pensionTaxable);
   const state = age >= UK_ASSUMPTIONS.statePensionAge
     ? UK_ASSUMPTIONS.statePensionAnnual
@@ -63,6 +75,7 @@ export function retirementIncome({ age, sipp, work, isa, swr }) {
   return {
     pensionGross,
     isaGross,
+    taxFreeCashUsed,
     grossSWR: pensionGross + isaGross,
     privateNet,
     state,

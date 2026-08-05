@@ -57,7 +57,7 @@ test('2026/27 income tax includes the Personal Allowance taper', () => {
   closeTo(incomeTax(125_140), 42_516);
 });
 
-test('State Pension is current and taxed alongside private pension income', () => {
+test('State Pension is current and sustainable income assumes tax-free cash is exhausted', () => {
   assert.equal(UK_ASSUMPTIONS.statePensionWeekly, 241.30);
   closeTo(UK_ASSUMPTIONS.statePensionAnnual, 12_547.60);
 
@@ -69,12 +69,36 @@ test('State Pension is current and taxed alongside private pension income', () =
     swr: 0.04,
   });
 
-  closeTo(income.privateNet, 19_514);
-  closeTo(income.totalNet, 29_552.08);
+  closeTo(income.privateNet, 18_514);
+  closeTo(income.totalNet, 28_552.08);
   assert.ok(
     income.totalNet < income.privateNet + UK_ASSUMPTIONS.statePensionAnnual,
     'State Pension must consume taxable allowance rather than be added net',
   );
+});
+
+test('near-term tax-free cash is explicitly bounded by remaining lifetime allowance', () => {
+  const available = retirementIncome({
+    age: 68,
+    sipp: 500_000,
+    work: 0,
+    isa: 0,
+    swr: 0.04,
+    taxFreeCashRemaining: UK_ASSUMPTIONS.lumpSumAllowance,
+  });
+  const nearlyExhausted = retirementIncome({
+    age: 68,
+    sipp: 500_000,
+    work: 0,
+    isa: 0,
+    swr: 0.04,
+    taxFreeCashRemaining: 1_000,
+  });
+
+  closeTo(available.taxFreeCashUsed, 5_000);
+  closeTo(available.totalNet, 29_552.08);
+  closeTo(nearlyExhausted.taxFreeCashUsed, 1_000);
+  assert.ok(nearlyExhausted.totalNet < available.totalNet);
 });
 
 test('pension wealth cannot create pre-57 FI without an ISA bridge', () => {
