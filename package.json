@@ -1,0 +1,9 @@
+{
+  "name": "fi-calculator-uk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --test"
+  }
+}
