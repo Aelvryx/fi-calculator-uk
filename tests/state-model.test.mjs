@@ -17,7 +17,7 @@ test('the saved plan contract covers every editable control exactly once', () =>
 test('malformed plan fields recover to safe bounded values', () => {
   const plan = normalisePlan({
     age: 45.9,
-    sipp: 'Infinity',
+    sipp: [],
     work: -50,
     monthly: null,
     target: 1,
@@ -71,6 +71,11 @@ test('snapshot history repairs totals and rejects unsafe records', () => {
     { date: 'not-a-date', sipp: 1, work: 2, isa: 3, monthly: 4 },
     { date: 0, sipp: 1, work: 2, isa: 3, monthly: 4 },
     { date: '2026-08-06T01:00:00.000Z', sipp: 'Infinity', work: 2, isa: 3, monthly: 4 },
+    { date: '2026-08-06T02:00:00.000Z', sipp: null, work: 2, isa: 3, monthly: 4 },
+    { date: '2026-08-06T03:00:00.000Z', sipp: true, work: 2, isa: 3, monthly: 4 },
+    { date: '2026-08-06T04:00:00.000Z', sipp: 1, work: 2, isa: 3, monthly: '' },
+    { date: '2026-08-06T05:00:00.000Z', sipp: [], work: 2, isa: 3, monthly: 4 },
+    { date: '2026-08-06T06:00:00.000Z', sipp: 1, work: 2, isa: 3, monthly: '   ' },
   ]);
 
   assert.deepEqual(snapshots, [{

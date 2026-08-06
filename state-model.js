@@ -51,7 +51,8 @@ const PLAN_LIMITS = Object.freeze({
 
 function boundedNumber(value, fallback, limits) {
   if (value === '') return limits.min === 0 ? 0 : fallback;
-  if (value === null || typeof value === 'boolean') return fallback;
+  if (!['number', 'string'].includes(typeof value)) return fallback;
+  if (typeof value === 'string' && value.trim() === '') return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   const normalized = limits.integer ? Math.floor(parsed) : parsed;
@@ -67,6 +68,8 @@ export function normalisePlan(raw) {
 }
 
 function validSnapshotNumber(value) {
+  if (!['number', 'string'].includes(typeof value)) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100_000_000
     ? parsed

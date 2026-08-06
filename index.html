@@ -253,13 +253,26 @@ const PLAN_STORAGE_KEY = 'fi-tracker-plan-v1';
 const SNAPSHOT_STORAGE_KEY = 'fi-tracker-snapshots';
 let storageAvailable = true;
 let snapshots = [];
-let snapshotHistoryDirty = false;
+let knownStoredSnapshots = [];
+let pendingSnapshotAppends = [];
+let snapshotClearPending = false;
 let pendingPlanChanges = {};
 
 function setStorageStatus(message, warning = false) {
   const status = document.getElementById('storageStatus');
   status.textContent = message;
   status.classList.toggle('warning', warning);
+}
+
+function setSuccessfulStorageStatus(message) {
+  const pending = [];
+  if (Object.keys(pendingPlanChanges).length) pending.push('plan changes');
+  if (snapshotClearPending || pendingSnapshotAppends.length) pending.push('snapshot changes');
+  if (pending.length) {
+    setStorageStatus(`${message} Unsaved ${pending.join(' and ')} remain available only for this tab.`, true);
+  } else {
+    setStorageStatus(message);
+  }
 }
 
 function readStoredJson(key) {
@@ -334,7 +347,7 @@ function persistPlan(changedField) {
 
   if (writeStoredJson(PLAN_STORAGE_KEY, nextPlan)) {
     pendingPlanChanges = {};
-    setStorageStatus('Plan saved locally in this browser. Snapshot history is stored separately.');
+    setSuccessfulStorageStatus('Plan saved locally in this browser. Snapshot history is stored separately.');
   }
 }
 
@@ -551,11 +564,13 @@ function showTab(name, trigger) {
 }
 
 // --- Snapshot persistence ---
-function snapshotsBeforeMutation() {
-  if (snapshotHistoryDirty) return snapshots;
+function storedSnapshotsBeforeMutation() {
+  if (snapshotClearPending) return [];
   const stored = readStoredJson(SNAPSHOT_STORAGE_KEY);
-  if (stored.blocked || stored.invalid) return snapshots;
-  return stored.exists ? normaliseSnapshots(stored.value) : [];
+  if (!stored.blocked && !stored.invalid) {
+    knownStoredSnapshots = stored.exists ? normaliseSnapshots(stored.value) : [];
+  }
+  return knownStoredSnapshots;
 }
 
 function saveSnapshot() {
@@ -568,10 +583,16 @@ function saveSnapshot() {
     monthly: inp.monthly,
     fiAge: fiAge,
   };
-  snapshots = normaliseSnapshots([...snapshotsBeforeMutation(), snap]);
-  snapshotHistoryDirty = !writeStoredJson(SNAPSHOT_STORAGE_KEY, snapshots);
-  if (!snapshotHistoryDirty) {
-    setStorageStatus('Snapshot saved. Your plan and history remain only in this browser.');
+  pendingSnapshotAppends.push(snap);
+  snapshots = normaliseSnapshots([
+    ...storedSnapshotsBeforeMutation(),
+    ...pendingSnapshotAppends,
+  ]);
+  if (writeStoredJson(SNAPSHOT_STORAGE_KEY, snapshots)) {
+    knownStoredSnapshots = snapshots;
+    pendingSnapshotAppends = [];
+    snapshotClearPending = false;
+    setSuccessfulStorageStatus('Snapshot saved. Your plan and history remain only in this browser.');
   }
   renderHistory();
 }
@@ -579,9 +600,12 @@ function saveSnapshot() {
 function clearHistory() {
   if (confirm('Clear all snapshots? This cannot be undone.')) {
     snapshots = [];
-    snapshotHistoryDirty = !removeStoredValue(SNAPSHOT_STORAGE_KEY);
-    if (!snapshotHistoryDirty) {
-      setStorageStatus('Snapshot history cleared. Your current plan is still saved locally.');
+    pendingSnapshotAppends = [];
+    snapshotClearPending = true;
+    if (removeStoredValue(SNAPSHOT_STORAGE_KEY)) {
+      knownStoredSnapshots = [];
+      snapshotClearPending = false;
+      setSuccessfulStorageStatus('Snapshot history cleared.');
     }
     renderHistory();
   }
@@ -635,9 +659,7 @@ function resetPlan() {
   calc();
   if (removeStoredValue(PLAN_STORAGE_KEY)) {
     pendingPlanChanges = {};
-    setStorageStatus(snapshotHistoryDirty
-      ? 'Example plan restored. Unsaved snapshot history remains available only for this tab.'
-      : 'Example plan restored. Snapshot history was kept; your next change will save locally.', snapshotHistoryDirty);
+    setSuccessfulStorageStatus('Example plan restored. Snapshot history was kept; your next change will save locally.');
   } else {
     pendingPlanChanges = { ...DEFAULT_PLAN };
   }
@@ -652,6 +674,9 @@ function loadLocalState() {
   snapshots = storedSnapshots.exists && !storedSnapshots.invalid
     ? normaliseSnapshots(storedSnapshots.value)
     : [];
+  knownStoredSnapshots = snapshots;
+  pendingSnapshotAppends = [];
+  snapshotClearPending = false;
   pendingPlanChanges = {};
 
   if (!storageAvailable || storedPlan.blocked || storedSnapshots.blocked) {
