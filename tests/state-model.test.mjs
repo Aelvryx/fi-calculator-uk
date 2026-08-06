@@ -19,6 +19,7 @@ test('malformed plan fields recover to safe bounded values', () => {
     age: 45.9,
     sipp: 'Infinity',
     work: -50,
+    monthly: null,
     target: 1,
     returnRate: 99,
     swr: 'not-a-rate',
@@ -28,6 +29,7 @@ test('malformed plan fields recover to safe bounded values', () => {
   assert.equal(plan.age, 45);
   assert.equal(plan.sipp, DEFAULT_PLAN.sipp);
   assert.equal(plan.work, 0);
+  assert.equal(plan.monthly, DEFAULT_PLAN.monthly);
   assert.equal(plan.target, 10_000);
   assert.equal(plan.returnRate, 8);
   assert.equal(plan.swr, DEFAULT_PLAN.swr);
@@ -76,4 +78,18 @@ test('snapshot history has a deliberate ten-year monthly ceiling', () => {
   assert.equal(snapshots.length, 240);
   assert.equal(snapshots[0].sipp, 10);
   assert.equal(snapshots.at(-1).sipp, 249);
+});
+
+test('an all-zero snapshot remains valid for an empty starting plan', () => {
+  const snapshots = normaliseSnapshots([{
+    date: '2026-08-06T00:00:00.000Z',
+    sipp: 0,
+    work: 0,
+    isa: 0,
+    monthly: 0,
+    fiAge: null,
+  }]);
+
+  assert.equal(snapshots.length, 1);
+  assert.equal(snapshots[0].total, 0);
 });

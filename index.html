@@ -570,7 +570,7 @@ function renderHistory() {
   }
   
   // Bar chart
-  const maxVal = Math.max(...snaps.map(s => s.total));
+  const maxVal = Math.max(...snaps.map(s => s.total), 1);
   chartEl.innerHTML = snaps.map((s, i) => {
     const h = (s.total / maxVal) * 100;
     const date = new Date(s.date).toLocaleDateString('en-GB', {month:'short', day:'numeric'});
