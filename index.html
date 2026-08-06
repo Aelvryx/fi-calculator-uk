@@ -310,6 +310,7 @@ function planFromControls() {
 }
 
 function applyPlan(plan) {
+  document.getElementById('sippRedirect').max = plan.totalMonthly;
   for (const field of PLAN_FIELDS) {
     document.getElementById(field).value = plan[field];
   }
@@ -545,6 +546,7 @@ function showTab(name, trigger) {
 
 // --- Snapshot persistence ---
 function snapshotsBeforeMutation() {
+  if (!storageAvailable) return snapshots;
   const stored = readStoredJson(SNAPSHOT_STORAGE_KEY);
   if (stored.blocked || stored.invalid) return snapshots;
   return stored.exists ? normaliseSnapshots(stored.value) : [];
