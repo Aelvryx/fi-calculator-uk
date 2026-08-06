@@ -3,10 +3,12 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
+  RESILIENCE_ASSUMPTIONS,
   UK_ASSUMPTIONS,
   allocationAtAccess,
   assessRetirementAt,
   incomeTax,
+  planResilience,
   project,
   requiredBridgeFund,
   retirementIncome,
@@ -148,6 +150,54 @@ test('allocator reports age 57 and preserves combined wealth under equal assumpt
   assert.ok(currentPlan.sipp < 200_000, 'must not accidentally return the age-75 balance');
 });
 
+test('plan resilience brackets the selected forecast without claiming probability', () => {
+  const scenarios = planResilience(defaults);
+
+  assert.deepEqual(
+    scenarios.map(({ key, label, rr, swr, fiAge }) => ({
+      key,
+      label,
+      rr,
+      swr,
+      fiAge,
+    })),
+    [
+      {
+        key: 'cautious',
+        label: 'Cautious',
+        rr: 0.02,
+        swr: 0.035,
+        fiAge: 67,
+      },
+      {
+        key: 'selected',
+        label: 'Your plan',
+        rr: 0.04,
+        swr: 0.04,
+        fiAge: 59,
+      },
+      {
+        key: 'favourable',
+        label: 'Favourable',
+        rr: 0.06,
+        swr: 0.04,
+        fiAge: 57,
+      },
+    ],
+  );
+  assert.equal(RESILIENCE_ASSUMPTIONS.realReturnDelta, 0.02);
+  assert.equal(RESILIENCE_ASSUMPTIONS.cautiousWithdrawalRate, 0.035);
+});
+
+test('cautious resilience never raises an already-lower selected withdrawal rate', () => {
+  const scenarios = planResilience({ ...defaults, rr: 0.01, swr: 0.03 });
+
+  assert.equal(scenarios[0].rr, 0);
+  assert.equal(scenarios[0].swr, 0.03);
+  assert.equal(scenarios[1].swr, 0.03);
+  assert.equal(scenarios[2].rr, 0.03);
+});
+
 test('the page exposes the tested model without fragile inline handlers', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -155,6 +205,8 @@ test('the page exposes the tested model without fragile inline handlers', async 
   assert.match(html, /from '\.\/state-model\.js'/);
   assert.match(html, /ISA Bridge Test/);
   assert.match(html, /Accessible FI age/);
+  assert.match(html, /Plan resilience/);
+  assert.match(html, /not probabilities/);
   assert.match(html, /Reset example plan/);
   assert.match(html, /fi-tracker-plan-v1/);
   assert.match(html, /£12,547\.60\/yr full 2026\/27 rate/);
