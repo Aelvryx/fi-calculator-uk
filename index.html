@@ -341,12 +341,16 @@ function persistPlan(changedField) {
       : DEFAULT_PLAN;
   pendingPlanChanges[changedField] = controls[changedField];
   let nextPlan = { ...base, ...pendingPlanChanges };
-  if (['totalMonthly', 'sippRedirect'].includes(changedField)) {
-    const redirect = Math.min(nextPlan.totalMonthly, nextPlan.sippRedirect);
-    if (redirect !== nextPlan.sippRedirect) {
-      pendingPlanChanges.sippRedirect = redirect;
-      nextPlan = { ...nextPlan, sippRedirect: redirect };
-    }
+  const contributionPairPending = ['totalMonthly', 'sippRedirect'].some(
+    field => Object.hasOwn(pendingPlanChanges, field),
+  );
+  const redirect = Math.min(nextPlan.totalMonthly, nextPlan.sippRedirect);
+  const redirectClamped = redirect !== nextPlan.sippRedirect;
+  if (redirectClamped) {
+    pendingPlanChanges.sippRedirect = redirect;
+    nextPlan = { ...nextPlan, sippRedirect: redirect };
+  }
+  if (contributionPairPending || redirectClamped) {
     const slider = document.getElementById('sippRedirect');
     document.getElementById('totalMonthly').value = nextPlan.totalMonthly;
     slider.max = nextPlan.totalMonthly;
