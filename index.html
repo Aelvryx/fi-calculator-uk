@@ -134,6 +134,13 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 </div>
 
 <div class="card">
+<h2 style="margin-top:0">Plan resilience</h2>
+<p style="color:var(--muted);margin-bottom:1rem">A single FI age is only one set of assumptions. This stress test shows how the same contributions and target behave when real returns are two percentage points lower or higher; the cautious case also caps withdrawals at 3.5%.</p>
+<div class="summary-grid" id="resilienceSummary"></div>
+<p class="bridge-note">These are deterministic sensitivity cases, not probabilities or market forecasts. The favourable case keeps your selected withdrawal rate rather than making spending more aggressive.</p>
+</div>
+
+<div class="card">
 <h2 style="margin-top:0">Summary</h2>
 <div class="summary-grid" id="summary"></div>
 </div>
@@ -240,6 +247,7 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 import {
   UK_ASSUMPTIONS,
   allocationAtAccess,
+  planResilience,
   project,
 } from './finance-model.js';
 import {
@@ -416,6 +424,20 @@ function calc() {
     <div class="summary-item"><div class="summary-value">${fmt(atPotMilestone.total)}</div><div class="summary-label">Pot at ${potMilestoneAge}</div></div>
     <div class="summary-item"><div class="summary-value">${fmt(atIncomeMilestone.privateNet)}/yr</div><div class="summary-label">Sustainable net at ${incomeMilestoneAge}</div></div>
   `;
+
+  const resilience = planResilience(inp);
+  const resilienceColours = {
+    cautious: 'var(--accent)',
+    selected: 'var(--green)',
+    favourable: 'var(--blue)',
+  };
+  document.getElementById('resilienceSummary').innerHTML = resilience.map(scenario => `
+    <div class="summary-item">
+      <div class="summary-value" style="color:${resilienceColours[scenario.key]}">${scenario.fiAge ?? '75+'}</div>
+      <div class="summary-label">${scenario.label} FI age</div>
+      <div class="helper">${(scenario.rr * 100).toFixed(1)}% real return · ${(scenario.swr * 100).toFixed(2).replace(/0$/, '')}% withdrawal</div>
+    </div>
+  `).join('');
 
   const bridge = current.retirement;
   document.getElementById('bridgeSummary').innerHTML = bridge.bridgeYears > 0 ? `

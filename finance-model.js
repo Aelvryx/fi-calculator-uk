@@ -15,6 +15,11 @@ export const UK_ASSUMPTIONS = Object.freeze({
   lumpSumAllowance: 268_275,
 });
 
+export const RESILIENCE_ASSUMPTIONS = Object.freeze({
+  realReturnDelta: 0.02,
+  cautiousWithdrawalRate: 0.035,
+});
+
 function nonNegative(value) {
   return Math.max(0, Number(value) || 0);
 }
@@ -199,6 +204,43 @@ export function project(
   }
 
   return { years, fiAge };
+}
+
+export function planResilience(inputs) {
+  const selectedReturn = Number(inputs.rr) || 0;
+  const selectedWithdrawal = nonNegative(inputs.swr);
+  const scenarios = [
+    {
+      key: 'cautious',
+      label: 'Cautious',
+      rr: Math.max(0, selectedReturn - RESILIENCE_ASSUMPTIONS.realReturnDelta),
+      swr: Math.min(
+        selectedWithdrawal,
+        RESILIENCE_ASSUMPTIONS.cautiousWithdrawalRate,
+      ),
+    },
+    {
+      key: 'selected',
+      label: 'Your plan',
+      rr: selectedReturn,
+      swr: selectedWithdrawal,
+    },
+    {
+      key: 'favourable',
+      label: 'Favourable',
+      rr: selectedReturn + RESILIENCE_ASSUMPTIONS.realReturnDelta,
+      swr: selectedWithdrawal,
+    },
+  ];
+
+  return scenarios.map(scenario => ({
+    ...scenario,
+    fiAge: project({
+      ...inputs,
+      rr: scenario.rr,
+      swr: scenario.swr,
+    }).fiAge,
+  }));
 }
 
 export function allocationAtAccess(inputs, totalMonthly, redirectMonthly) {
