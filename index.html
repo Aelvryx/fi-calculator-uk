@@ -254,6 +254,7 @@ const SNAPSHOT_STORAGE_KEY = 'fi-tracker-snapshots';
 let storageAvailable = true;
 let snapshots = [];
 let snapshotHistoryDirty = false;
+let pendingPlanChanges = {};
 
 function setStorageStatus(message, warning = false) {
   const status = document.getElementById('storageStatus');
@@ -328,25 +329,27 @@ function persistPlan(changedField) {
   const changedFields = changedField === 'totalMonthly'
     ? ['totalMonthly', 'sippRedirect']
     : [changedField];
-  const nextPlan = { ...base };
-  for (const field of changedFields) nextPlan[field] = controls[field];
+  for (const field of changedFields) pendingPlanChanges[field] = controls[field];
+  const nextPlan = { ...base, ...pendingPlanChanges };
 
   if (writeStoredJson(PLAN_STORAGE_KEY, nextPlan)) {
+    pendingPlanChanges = {};
     setStorageStatus('Plan saved locally in this browser. Snapshot history is stored separately.');
   }
 }
 
 function getInputs() {
+  const plan = planFromControls();
   return {
-    age: +document.getElementById('age').value,
-    sipp: +document.getElementById('sipp').value,
-    work: +document.getElementById('work').value,
-    isa: +document.getElementById('isa').value,
-    monthly: +document.getElementById('monthly').value,
-    isaMonthly: +document.getElementById('isaMonthly').value,
-    target: +document.getElementById('target').value,
-    rr: +document.getElementById('returnRate').value / 100,
-    swr: +document.getElementById('swr').value / 100,
+    age: plan.age,
+    sipp: plan.sipp,
+    work: plan.work,
+    isa: plan.isa,
+    monthly: plan.monthly,
+    isaMonthly: plan.isaMonthly,
+    target: plan.target,
+    rr: plan.returnRate / 100,
+    swr: plan.swr / 100,
     currentYear: new Date().getFullYear(),
   };
 }
@@ -479,9 +482,10 @@ function updateScenarios(inp) {
 
 function updateScenario() {
   const inp = getInputs();
-  const extraSipp = +document.getElementById('extraSipp').value || 0;
-  const extraIsa = +document.getElementById('extraIsa').value || 0;
-  const contributionIncrease = +document.getElementById('salaryIncrease').value || 0;
+  const plan = planFromControls();
+  const extraSipp = plan.extraSipp;
+  const extraIsa = plan.extraIsa;
+  const contributionIncrease = plan.salaryIncrease;
   const extraWork = inp.monthly * (contributionIncrease / 100);
   const baseline = project(inp);
   const custom = project(inp, extraSipp, extraIsa, extraWork);
@@ -501,11 +505,12 @@ function updateScenario() {
 
 function updateAllocator() {
   const inp = getInputs();
-  const total = +document.getElementById('totalMonthly').value || 0;
+  const plan = planFromControls();
+  const total = plan.totalMonthly;
   const slider = document.getElementById('sippRedirect');
   slider.max = total;
-  if (+slider.value > total) slider.value = total;
-  const redirect = +slider.value || 0;
+  if (plan.sippRedirect > total) slider.value = total;
+  const redirect = Math.min(total, plan.sippRedirect);
   document.getElementById('redirectValue').textContent = `£${redirect}/mo`;
   const withRedirect = allocationAtAccess(inp, total, redirect);
   const currentPlan = allocationAtAccess(inp, total, 0);
@@ -629,9 +634,12 @@ function resetPlan() {
   syncRangeLabels();
   calc();
   if (removeStoredValue(PLAN_STORAGE_KEY)) {
+    pendingPlanChanges = {};
     setStorageStatus(snapshotHistoryDirty
       ? 'Example plan restored. Unsaved snapshot history remains available only for this tab.'
       : 'Example plan restored. Snapshot history was kept; your next change will save locally.', snapshotHistoryDirty);
+  } else {
+    pendingPlanChanges = { ...DEFAULT_PLAN };
   }
 }
 
@@ -644,6 +652,7 @@ function loadLocalState() {
   snapshots = storedSnapshots.exists && !storedSnapshots.invalid
     ? normaliseSnapshots(storedSnapshots.value)
     : [];
+  pendingPlanChanges = {};
 
   if (!storageAvailable || storedPlan.blocked || storedSnapshots.blocked) {
     setStorageStatus('Browser storage is unavailable. Changes still work, but only for this tab.', true);
