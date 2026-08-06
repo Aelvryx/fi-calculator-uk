@@ -339,11 +339,20 @@ function persistPlan(changedField) {
     : stored.exists && !stored.invalid
       ? normalisePlan(stored.value)
       : DEFAULT_PLAN;
-  const changedFields = changedField === 'totalMonthly'
-    ? ['totalMonthly', 'sippRedirect']
-    : [changedField];
-  for (const field of changedFields) pendingPlanChanges[field] = controls[field];
-  const nextPlan = { ...base, ...pendingPlanChanges };
+  pendingPlanChanges[changedField] = controls[changedField];
+  let nextPlan = { ...base, ...pendingPlanChanges };
+  if (['totalMonthly', 'sippRedirect'].includes(changedField)) {
+    const redirect = Math.min(nextPlan.totalMonthly, nextPlan.sippRedirect);
+    if (redirect !== nextPlan.sippRedirect) {
+      pendingPlanChanges.sippRedirect = redirect;
+      nextPlan = { ...nextPlan, sippRedirect: redirect };
+    }
+    const slider = document.getElementById('sippRedirect');
+    document.getElementById('totalMonthly').value = nextPlan.totalMonthly;
+    slider.max = nextPlan.totalMonthly;
+    slider.value = nextPlan.sippRedirect;
+    updateAllocator();
+  }
 
   if (writeStoredJson(PLAN_STORAGE_KEY, nextPlan)) {
     pendingPlanChanges = {};
