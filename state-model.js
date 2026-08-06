@@ -105,5 +105,7 @@ export function normaliseSnapshots(raw) {
       monthly,
       fiAge,
     }];
-  }).slice(-240);
+  }).sort(
+    (left, right) => Date.parse(left.date) - Date.parse(right.date),
+  ).slice(-240);
 }

@@ -105,6 +105,16 @@ test('snapshot history has a deliberate ten-year monthly ceiling', () => {
   assert.equal(snapshots.at(-1).sipp, 249);
 });
 
+test('snapshot history is canonicalized chronologically before limiting', () => {
+  const snapshots = normaliseSnapshots([
+    { date: '2026-08-06T02:00:00.000Z', sipp: 2, work: 0, isa: 0, monthly: 0, fiAge: null },
+    { date: '2026-08-06T00:00:00.000Z', sipp: 0, work: 0, isa: 0, monthly: 0, fiAge: null },
+    { date: '2026-08-06T01:00:00.000Z', sipp: 1, work: 0, isa: 0, monthly: 0, fiAge: null },
+  ]);
+
+  assert.deepEqual(snapshots.map(snapshot => snapshot.sipp), [0, 1, 2]);
+});
+
 test('an all-zero snapshot remains valid for an empty starting plan', () => {
   const snapshots = normaliseSnapshots([{
     date: '2026-08-06T00:00:00.000Z',
