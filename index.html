@@ -73,12 +73,19 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 .allocation-sipp { background: var(--blue); }
 .allocation-work { background: var(--accent); }
 .allocation-isa { background: var(--green); }
+.plan-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.plan-toolbar h2 { margin: 0; }
+.helper { color: var(--muted); font-size: 0.85rem; margin-top: 0.35rem; }
+.secondary-button { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 0.55rem 0.8rem; border-radius: 4px; font: inherit; font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+.storage-status { color: var(--green); background: var(--surface2); background: color-mix(in srgb, var(--green) 8%, var(--surface2)); border: 1px solid var(--border); border-color: color-mix(in srgb, var(--green) 30%, var(--border)); border-radius: 6px; padding: 0.65rem 0.8rem; margin-bottom: 1rem; font-size: 0.82rem; }
+.storage-status.warning { color: var(--accent); background: var(--surface2); background: color-mix(in srgb, var(--accent) 8%, var(--surface2)); border-color: var(--border); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
 @media (max-width: 600px) {
   .row { flex-direction: column; }
   .bar-chart { height: 150px; }
   .tabs { display: grid; grid-template-columns: repeat(2, 1fr); }
   .tab { padding: 0.65rem 0.5rem; }
   .card { padding: 1rem; overflow-x: auto; }
+  .plan-toolbar { flex-direction: column; }
 }
 </style>
 </head>
@@ -98,7 +105,11 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 <div id="forecast" class="tab-content active">
 
 <div class="card">
-<h2 style="margin-top:0">Your Numbers</h2>
+<div class="plan-toolbar">
+<div><h2>Your Numbers</h2><p class="helper">Start with the example, then replace it with your plan. Changes save only in this browser.</p></div>
+<button type="button" class="secondary-button" id="resetPlan">Reset example plan</button>
+</div>
+<p class="storage-status" id="storageStatus" role="status" aria-atomic="true">Using the example plan. Your first change will save locally.</p>
 <div class="row">
 <div class="field"><label>Current age</label><input type="number" id="age" value="38" min="18" max="75"></div>
 <div class="field"><label>SIPP (£)</label><input type="number" id="sipp" value="90000" min="0" step="1000"></div>
@@ -201,9 +212,9 @@ th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-s
 <div id="tracker" class="tab-content">
 <div class="card">
 <h2 style="margin-top:0">Save & Track Over Time</h2>
-<p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">Your numbers are saved locally in your browser. Come back each month, update your actual pot sizes, and see how your FI trajectory changes over time.</p>
+<p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">Your current plan auto-saves locally. Come back each month, update the actual pot sizes, then save a dated snapshot to see how your FI trajectory changes over time.</p>
 <div class="row">
-<div class="field"><button id="saveSnapshot" type="button" style="background:var(--accent);color:var(--bg);border:none;padding:0.6rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer;font-weight:600">📸 Save Snapshot</button></div>
+<div class="field"><button id="saveSnapshot" type="button" style="background:var(--accent);color:var(--bg);border:none;padding:0.6rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer;font-weight:600">Save Snapshot</button></div>
 <div class="field"><button id="clearHistory" type="button" style="background:transparent;color:var(--muted);border:1px solid var(--border);padding:0.6rem 1.5rem;border-radius:4px;font-size:0.9rem;cursor:pointer">Clear History</button></div>
 </div>
 </div>
@@ -231,18 +242,140 @@ import {
   allocationAtAccess,
   project,
 } from './finance-model.js';
+import {
+  DEFAULT_PLAN,
+  PLAN_FIELDS,
+  normalisePlan,
+  normaliseSnapshots,
+} from './state-model.js';
+
+const PLAN_STORAGE_KEY = 'fi-tracker-plan-v1';
+const SNAPSHOT_STORAGE_KEY = 'fi-tracker-snapshots';
+let storageAvailable = true;
+let snapshots = [];
+let knownStoredSnapshots = [];
+let pendingSnapshotAppends = [];
+let snapshotClearPending = false;
+let pendingPlanChanges = {};
+
+function setStorageStatus(message, warning = false) {
+  const status = document.getElementById('storageStatus');
+  status.textContent = message;
+  status.classList.toggle('warning', warning);
+}
+
+function setSuccessfulStorageStatus(message) {
+  const pending = [];
+  if (Object.keys(pendingPlanChanges).length) pending.push('plan changes');
+  if (snapshotClearPending || pendingSnapshotAppends.length) pending.push('snapshot changes');
+  if (pending.length) {
+    setStorageStatus(`${message} Unsaved ${pending.join(' and ')} remain available only for this tab.`, true);
+  } else {
+    setStorageStatus(message);
+  }
+}
+
+function readStoredJson(key) {
+  let serialized;
+  try {
+    serialized = localStorage.getItem(key);
+  } catch {
+    storageAvailable = false;
+    return { blocked: true, exists: false, invalid: false, value: null };
+  }
+  if (serialized === null) {
+    return { blocked: false, exists: false, invalid: false, value: null };
+  }
+  try {
+    return { blocked: false, exists: true, invalid: false, value: JSON.parse(serialized) };
+  } catch {
+    return { blocked: false, exists: true, invalid: true, value: null };
+  }
+}
+
+function writeStoredJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    storageAvailable = true;
+    return true;
+  } catch {
+    storageAvailable = false;
+    setStorageStatus('Browser storage is unavailable. Changes still work, but only for this tab.', true);
+    return false;
+  }
+}
+
+function removeStoredValue(key) {
+  try {
+    localStorage.removeItem(key);
+    storageAvailable = true;
+    return true;
+  } catch {
+    storageAvailable = false;
+    setStorageStatus('Browser storage is unavailable. Changes still work, but only for this tab.', true);
+    return false;
+  }
+}
+
+function planFromControls() {
+  return normalisePlan(Object.fromEntries(PLAN_FIELDS.map(field => [
+    field,
+    document.getElementById(field).value,
+  ])));
+}
+
+function applyPlan(plan) {
+  document.getElementById('sippRedirect').max = plan.totalMonthly;
+  for (const field of PLAN_FIELDS) {
+    document.getElementById(field).value = plan[field];
+  }
+}
+
+function persistPlan(changedField) {
+  const controls = planFromControls();
+  const stored = readStoredJson(PLAN_STORAGE_KEY);
+  const base = stored.blocked
+    ? controls
+    : stored.exists && !stored.invalid
+      ? normalisePlan(stored.value)
+      : DEFAULT_PLAN;
+  pendingPlanChanges[changedField] = controls[changedField];
+  let nextPlan = { ...base, ...pendingPlanChanges };
+  const contributionPairPending = ['totalMonthly', 'sippRedirect'].some(
+    field => Object.hasOwn(pendingPlanChanges, field),
+  );
+  const redirect = Math.min(nextPlan.totalMonthly, nextPlan.sippRedirect);
+  const redirectClamped = redirect !== nextPlan.sippRedirect;
+  if (redirectClamped) {
+    pendingPlanChanges.sippRedirect = redirect;
+    nextPlan = { ...nextPlan, sippRedirect: redirect };
+  }
+  if (contributionPairPending || redirectClamped) {
+    const slider = document.getElementById('sippRedirect');
+    document.getElementById('totalMonthly').value = nextPlan.totalMonthly;
+    slider.max = nextPlan.totalMonthly;
+    slider.value = nextPlan.sippRedirect;
+    updateAllocator();
+  }
+
+  if (writeStoredJson(PLAN_STORAGE_KEY, nextPlan)) {
+    pendingPlanChanges = {};
+    setSuccessfulStorageStatus('Plan saved locally in this browser. Snapshot history is stored separately.');
+  }
+}
 
 function getInputs() {
+  const plan = planFromControls();
   return {
-    age: +document.getElementById('age').value,
-    sipp: +document.getElementById('sipp').value,
-    work: +document.getElementById('work').value,
-    isa: +document.getElementById('isa').value,
-    monthly: +document.getElementById('monthly').value,
-    isaMonthly: +document.getElementById('isaMonthly').value,
-    target: +document.getElementById('target').value,
-    rr: +document.getElementById('returnRate').value / 100,
-    swr: +document.getElementById('swr').value / 100,
+    age: plan.age,
+    sipp: plan.sipp,
+    work: plan.work,
+    isa: plan.isa,
+    monthly: plan.monthly,
+    isaMonthly: plan.isaMonthly,
+    target: plan.target,
+    rr: plan.returnRate / 100,
+    swr: plan.swr / 100,
     currentYear: new Date().getFullYear(),
   };
 }
@@ -375,9 +508,10 @@ function updateScenarios(inp) {
 
 function updateScenario() {
   const inp = getInputs();
-  const extraSipp = +document.getElementById('extraSipp').value || 0;
-  const extraIsa = +document.getElementById('extraIsa').value || 0;
-  const contributionIncrease = +document.getElementById('salaryIncrease').value || 0;
+  const plan = planFromControls();
+  const extraSipp = plan.extraSipp;
+  const extraIsa = plan.extraIsa;
+  const contributionIncrease = plan.salaryIncrease;
   const extraWork = inp.monthly * (contributionIncrease / 100);
   const baseline = project(inp);
   const custom = project(inp, extraSipp, extraIsa, extraWork);
@@ -397,11 +531,12 @@ function updateScenario() {
 
 function updateAllocator() {
   const inp = getInputs();
-  const total = +document.getElementById('totalMonthly').value || 0;
+  const plan = planFromControls();
+  const total = plan.totalMonthly;
   const slider = document.getElementById('sippRedirect');
   slider.max = total;
-  if (+slider.value > total) slider.value = total;
-  const redirect = +slider.value || 0;
+  if (plan.sippRedirect > total) slider.value = total;
+  const redirect = Math.min(total, plan.sippRedirect);
   document.getElementById('redirectValue').textContent = `£${redirect}/mo`;
   const withRedirect = allocationAtAccess(inp, total, redirect);
   const currentPlan = allocationAtAccess(inp, total, 0);
@@ -442,11 +577,13 @@ function showTab(name, trigger) {
 }
 
 // --- Snapshot persistence ---
-const STORAGE_KEY = 'fi-tracker-snapshots';
-
-function getSnapshots() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-  catch { return []; }
+function storedSnapshotsBeforeMutation() {
+  if (snapshotClearPending) return [];
+  const stored = readStoredJson(SNAPSHOT_STORAGE_KEY);
+  if (!stored.blocked && !stored.invalid) {
+    knownStoredSnapshots = stored.exists ? normaliseSnapshots(stored.value) : [];
+  }
+  return knownStoredSnapshots;
 }
 
 function saveSnapshot() {
@@ -459,21 +596,36 @@ function saveSnapshot() {
     monthly: inp.monthly,
     fiAge: fiAge,
   };
-  const snaps = getSnapshots();
-  snaps.push(snap);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snaps));
+  pendingSnapshotAppends.push(snap);
+  snapshots = normaliseSnapshots([
+    ...storedSnapshotsBeforeMutation(),
+    ...pendingSnapshotAppends,
+  ]);
+  if (writeStoredJson(SNAPSHOT_STORAGE_KEY, snapshots)) {
+    knownStoredSnapshots = snapshots;
+    pendingSnapshotAppends = [];
+    snapshotClearPending = false;
+    setSuccessfulStorageStatus('Snapshot saved. Your plan and history remain only in this browser.');
+  }
   renderHistory();
 }
 
 function clearHistory() {
   if (confirm('Clear all snapshots? This cannot be undone.')) {
-    localStorage.removeItem(STORAGE_KEY);
+    snapshots = [];
+    pendingSnapshotAppends = [];
+    snapshotClearPending = true;
+    if (removeStoredValue(SNAPSHOT_STORAGE_KEY)) {
+      knownStoredSnapshots = [];
+      snapshotClearPending = false;
+      setSuccessfulStorageStatus('Snapshot history cleared.');
+    }
     renderHistory();
   }
 }
 
 function renderHistory() {
-  const snaps = getSnapshots();
+  const snaps = snapshots;
   const chartEl = document.getElementById('historyChart');
   const tableEl = document.getElementById('historyTable');
   
@@ -484,7 +636,7 @@ function renderHistory() {
   }
   
   // Bar chart
-  const maxVal = Math.max(...snaps.map(s => s.total));
+  const maxVal = Math.max(...snaps.map(s => s.total), 1);
   chartEl.innerHTML = snaps.map((s, i) => {
     const h = (s.total / maxVal) * 100;
     const date = new Date(s.date).toLocaleDateString('en-GB', {month:'short', day:'numeric'});
@@ -513,6 +665,46 @@ function renderHistory() {
   }).reverse().join('');
 }
 
+function resetPlan() {
+  if (!confirm('Reset every plan and scenario input to the example values? Snapshot history will be kept.')) return;
+  applyPlan(DEFAULT_PLAN);
+  syncRangeLabels();
+  calc();
+  if (removeStoredValue(PLAN_STORAGE_KEY)) {
+    pendingPlanChanges = {};
+    setSuccessfulStorageStatus('Example plan restored. Snapshot history was kept; your next change will save locally.');
+  } else {
+    pendingPlanChanges = { ...DEFAULT_PLAN };
+  }
+}
+
+function loadLocalState() {
+  const storedPlan = readStoredJson(PLAN_STORAGE_KEY);
+  const storedSnapshots = readStoredJson(SNAPSHOT_STORAGE_KEY);
+  applyPlan(storedPlan.exists && !storedPlan.invalid
+    ? normalisePlan(storedPlan.value)
+    : DEFAULT_PLAN);
+  snapshots = storedSnapshots.exists && !storedSnapshots.invalid
+    ? normaliseSnapshots(storedSnapshots.value)
+    : [];
+  knownStoredSnapshots = snapshots;
+  pendingSnapshotAppends = [];
+  snapshotClearPending = false;
+  pendingPlanChanges = {};
+
+  if (!storageAvailable || storedPlan.blocked || storedSnapshots.blocked) {
+    setStorageStatus('Browser storage is unavailable. Changes still work, but only for this tab.', true);
+  } else if (storedPlan.invalid) {
+    setStorageStatus('The saved plan could not be read, so the example was restored. Your next change will replace it.', true);
+  } else if (storedSnapshots.invalid) {
+    setStorageStatus('Snapshot history could not be read. The current plan is still usable.', true);
+  } else if (storedPlan.exists) {
+    setStorageStatus('Saved plan restored from this browser. Snapshot history is stored separately.');
+  } else {
+    setStorageStatus('Using the example plan. Your first change will save locally.');
+  }
+}
+
 function syncRangeLabels() {
   document.getElementById('returnValue').textContent = `${document.getElementById('returnRate').value}%`;
   document.getElementById('swrValue').textContent = `${document.getElementById('swr').value}%`;
@@ -522,6 +714,7 @@ document.querySelectorAll('input').forEach(input => {
   input.addEventListener('input', () => {
     syncRangeLabels();
     calc();
+    persistPlan(input.id);
   });
 });
 document.querySelectorAll('.tab').forEach(tab => {
@@ -529,7 +722,9 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 document.getElementById('saveSnapshot').addEventListener('click', saveSnapshot);
 document.getElementById('clearHistory').addEventListener('click', clearHistory);
+document.getElementById('resetPlan').addEventListener('click', resetPlan);
 
+loadLocalState();
 syncRangeLabels();
 calc();
 renderHistory();

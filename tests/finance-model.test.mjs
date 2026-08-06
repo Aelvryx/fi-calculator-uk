@@ -152,8 +152,11 @@ test('the page exposes the tested model without fragile inline handlers', async 
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
   assert.match(html, /from '\.\/finance-model\.js'/);
+  assert.match(html, /from '\.\/state-model\.js'/);
   assert.match(html, /ISA Bridge Test/);
   assert.match(html, /Accessible FI age/);
+  assert.match(html, /Reset example plan/);
+  assert.match(html, /fi-tracker-plan-v1/);
   assert.match(html, /£12,547\.60\/yr full 2026\/27 rate/);
   assert.doesNotMatch(html, /£11,502/);
   assert.doesNotMatch(html, /\son(?:click|input)=/);
