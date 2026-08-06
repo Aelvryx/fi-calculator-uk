@@ -315,8 +315,21 @@ function applyPlan(plan) {
   }
 }
 
-function persistPlan() {
-  if (writeStoredJson(PLAN_STORAGE_KEY, planFromControls())) {
+function persistPlan(changedField) {
+  const controls = planFromControls();
+  const stored = readStoredJson(PLAN_STORAGE_KEY);
+  const base = stored.blocked
+    ? controls
+    : stored.exists && !stored.invalid
+      ? normalisePlan(stored.value)
+      : DEFAULT_PLAN;
+  const changedFields = changedField === 'totalMonthly'
+    ? ['totalMonthly', 'sippRedirect']
+    : [changedField];
+  const nextPlan = { ...base };
+  for (const field of changedFields) nextPlan[field] = controls[field];
+
+  if (writeStoredJson(PLAN_STORAGE_KEY, nextPlan)) {
     setStorageStatus('Plan saved locally in this browser. Snapshot history is stored separately.');
   }
 }
@@ -647,7 +660,7 @@ document.querySelectorAll('input').forEach(input => {
   input.addEventListener('input', () => {
     syncRangeLabels();
     calc();
-    persistPlan();
+    persistPlan(input.id);
   });
 });
 document.querySelectorAll('.tab').forEach(tab => {
