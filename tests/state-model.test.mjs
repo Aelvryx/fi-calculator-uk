@@ -37,6 +37,26 @@ test('malformed plan fields recover to safe bounded values', () => {
   assert.equal(Object.keys(plan).length, PLAN_FIELDS.length);
 });
 
+test('cleared zero-allowed controls persist the zero used by the forecast', () => {
+  const plan = normalisePlan({
+    age: '',
+    sipp: '',
+    work: '',
+    isa: '',
+    monthly: '',
+    target: '',
+    salaryIncrease: '',
+  });
+
+  assert.equal(plan.age, DEFAULT_PLAN.age);
+  assert.equal(plan.target, DEFAULT_PLAN.target);
+  assert.equal(plan.sipp, 0);
+  assert.equal(plan.work, 0);
+  assert.equal(plan.isa, 0);
+  assert.equal(plan.monthly, 0);
+  assert.equal(plan.salaryIncrease, 0);
+});
+
 test('snapshot history repairs totals and rejects unsafe records', () => {
   const snapshots = normaliseSnapshots([
     {

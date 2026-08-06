@@ -50,7 +50,8 @@ const PLAN_LIMITS = Object.freeze({
 });
 
 function boundedNumber(value, fallback, limits) {
-  if (value === null || value === '' || typeof value === 'boolean') return fallback;
+  if (value === '') return limits.min === 0 ? 0 : fallback;
+  if (value === null || typeof value === 'boolean') return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   const normalized = limits.integer ? Math.floor(parsed) : parsed;
