@@ -253,6 +253,7 @@ const PLAN_STORAGE_KEY = 'fi-tracker-plan-v1';
 const SNAPSHOT_STORAGE_KEY = 'fi-tracker-snapshots';
 let storageAvailable = true;
 let snapshots = [];
+let snapshotHistoryDirty = false;
 
 function setStorageStatus(message, warning = false) {
   const status = document.getElementById('storageStatus');
@@ -546,7 +547,7 @@ function showTab(name, trigger) {
 
 // --- Snapshot persistence ---
 function snapshotsBeforeMutation() {
-  if (!storageAvailable) return snapshots;
+  if (snapshotHistoryDirty) return snapshots;
   const stored = readStoredJson(SNAPSHOT_STORAGE_KEY);
   if (stored.blocked || stored.invalid) return snapshots;
   return stored.exists ? normaliseSnapshots(stored.value) : [];
@@ -563,7 +564,8 @@ function saveSnapshot() {
     fiAge: fiAge,
   };
   snapshots = normaliseSnapshots([...snapshotsBeforeMutation(), snap]);
-  if (writeStoredJson(SNAPSHOT_STORAGE_KEY, snapshots)) {
+  snapshotHistoryDirty = !writeStoredJson(SNAPSHOT_STORAGE_KEY, snapshots);
+  if (!snapshotHistoryDirty) {
     setStorageStatus('Snapshot saved. Your plan and history remain only in this browser.');
   }
   renderHistory();
@@ -572,7 +574,8 @@ function saveSnapshot() {
 function clearHistory() {
   if (confirm('Clear all snapshots? This cannot be undone.')) {
     snapshots = [];
-    if (removeStoredValue(SNAPSHOT_STORAGE_KEY)) {
+    snapshotHistoryDirty = !removeStoredValue(SNAPSHOT_STORAGE_KEY);
+    if (!snapshotHistoryDirty) {
       setStorageStatus('Snapshot history cleared. Your current plan is still saved locally.');
     }
     renderHistory();
@@ -626,7 +629,9 @@ function resetPlan() {
   syncRangeLabels();
   calc();
   if (removeStoredValue(PLAN_STORAGE_KEY)) {
-    setStorageStatus('Example plan restored. Snapshot history was kept; your next change will save locally.');
+    setStorageStatus(snapshotHistoryDirty
+      ? 'Example plan restored. Unsaved snapshot history remains available only for this tab.'
+      : 'Example plan restored. Snapshot history was kept; your next change will save locally.', snapshotHistoryDirty);
   }
 }
 
